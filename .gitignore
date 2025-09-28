@@ -1,0 +1,18 @@
+# ROS2 workspace ignores
+build/
+install/
+log/
+
+# Colcon metadata
+colcon_command_prefix.sh
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Editors/IDE
+.vscode/
+.idea/
+
+# Misc generated
+*.pcd
