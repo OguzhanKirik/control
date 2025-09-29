@@ -61,6 +61,9 @@ PointCloudNode::PointCloudNode() : Node("point_cloud_node")
   tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
+  // Initialize known box dimensions
+  initializeKnownBoxes();
+
   // Initialize image transport after a short delay to ensure node is fully constructed
   auto timer = this->create_wall_timer(std::chrono::milliseconds(100), [this]() { initializeImageTransport(); });
 }
@@ -663,22 +666,33 @@ void PointCloudNode::segmentPlanesInBoxes(
             Eigen::Vector4f centroid;
             pcl::compute3DCentroid(*plane_cloud, centroid);
             
+            // Enhanced face detection using known dimensions
+            DetectedFace detected_face = determineFaceType(filtered_cloud, normal, face_name);
+            
             RCLCPP_INFO(this->get_logger(), 
-                       "Box %zu: Detected %s - %.1f%% points in plane (area: %.4f m²), normal: [%.3f, %.3f, %.3f]", 
+                       "Box %zu: %s - %.1f%% points in plane (area: %.4f m²)", 
                        box_idx + 1, face_description.c_str(),
                        (double)inliers->indices.size() / filtered_cloud->points.size() * 100.0,
-                       plane_area, normal.x(), normal.y(), normal.z());
+                       plane_area);
+                       
+            RCLCPP_INFO(this->get_logger(),
+                       "  🎯 Face type: %s (confidence: %.1f%%), visible dims: %.3fx%.3f m, hidden dim: %.3f m",
+                       detected_face.face_type.c_str(), detected_face.confidence * 100.0,
+                       detected_face.length1, detected_face.length2, detected_face.perpendicular_dim);
             
-            // Add to summary string for structured publishing
+            // Add enhanced information to summary string
             if (!face_detection_summary.empty()) {
                 face_detection_summary += ";";
             }
             face_detection_summary += "Box" + std::to_string(box_idx + 1) + ":" + face_name + 
-                                    ":confidence:" + std::to_string((double)inliers->indices.size() / filtered_cloud->points.size()) +
+                                    ":face_type:" + detected_face.face_type +
+                                    ":confidence:" + std::to_string(detected_face.confidence) +
+                                    ":visible_dims:" + std::to_string(detected_face.length1) + "x" + std::to_string(detected_face.length2) +
+                                    ":hidden_dim:" + std::to_string(detected_face.perpendicular_dim) +
                                     ":area:" + std::to_string(plane_area) +
                                     ":normal:" + std::to_string(normal.x()) + "," + std::to_string(normal.y()) + "," + std::to_string(normal.z());
             
-            // Create visualization marker for the plane
+            // Create visualization marker for the plane with enhanced info
             visualization_msgs::msg::Marker marker;
             marker.header.frame_id = target_frame_;
             marker.header.stamp = this->get_clock()->now();
@@ -692,7 +706,7 @@ void PointCloudNode::segmentPlanesInBoxes(
             marker.pose.position.z = centroid[2] + 0.05; // Slightly above the plane
             marker.pose.orientation.w = 1.0;
             
-            marker.scale.z = 0.03; // Text size
+            marker.scale.z = 0.025; // Text size
             marker.color.a = 1.0;
             marker.color.r = 1.0;
             marker.color.g = 1.0;
@@ -1177,6 +1191,196 @@ void PointCloudNode::drawCoordinateSystemsOnImage(
     } catch (const std::exception& e) {
         RCLCPP_ERROR(this->get_logger(), "Error in drawCoordinateSystemsOnImage: %s", e.what());
     }
+}
+
+// Initialize known box dimensions - YOUR ACTUAL BOX DIMENSIONS
+void PointCloudNode::initializeKnownBoxes() 
+{
+    known_boxes_.clear();
+    
+    // Actual box dimensions from your data (sorted as a <= b <= c)
+    // Small box: [0.340, 0.250, 0.095] -> sorted: [0.095, 0.250, 0.340]
+    known_boxes_.push_back({0.095, 0.250, 0.340, "Small Box"});
+    
+    // Medium box: [0.255, 0.155, 0.100] -> sorted: [0.100, 0.155, 0.255]  
+    known_boxes_.push_back({0.100, 0.155, 0.255, "Medium Box"});
+    
+    RCLCPP_INFO(this->get_logger(), "Initialized %zu known box types from data folder", known_boxes_.size());
+    for (const auto& box : known_boxes_) {
+        RCLCPP_INFO(this->get_logger(), "  - %s: %.3f x %.3f x %.3f m (a x b x c)", 
+                   box.box_type.c_str(), box.dim_a, box.dim_b, box.dim_c);
+    }
+    
+    // Log the face combinations for reference
+    RCLCPP_INFO(this->get_logger(), "Possible face types:");
+    for (const auto& box : known_boxes_) {
+        RCLCPP_INFO(this->get_logger(), "  %s faces:", box.box_type.c_str());
+        RCLCPP_INFO(this->get_logger(), "    - (a,b) face: %.3f x %.3f m, hidden c: %.3f m", 
+                   box.dim_a, box.dim_b, box.dim_c);
+        RCLCPP_INFO(this->get_logger(), "    - (a,c) face: %.3f x %.3f m, hidden b: %.3f m", 
+                   box.dim_a, box.dim_c, box.dim_b);
+        RCLCPP_INFO(this->get_logger(), "    - (b,c) face: %.3f x %.3f m, hidden a: %.3f m", 
+                   box.dim_b, box.dim_c, box.dim_a);
+    }
+}
+
+// Estimate box dimensions from point cloud using PCA
+PointCloudNode::KnownBoxDimensions PointCloudNode::estimateBoxDimensions(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& box_cloud)
+{
+    KnownBoxDimensions dims;
+    dims.box_type = "Unknown";
+    
+    if (box_cloud->points.size() < 10) {
+        return dims;
+    }
+    
+    // Calculate centroid
+    Eigen::Vector4f centroid;
+    pcl::compute3DCentroid(*box_cloud, centroid);
+    
+    // Calculate covariance matrix for PCA
+    Eigen::Matrix3f covariance_matrix;
+    pcl::computeCovarianceMatrixNormalized(*box_cloud, centroid, covariance_matrix);
+    
+    // Eigen decomposition
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance_matrix);
+    Eigen::Matrix3f eigenVectors = eigen_solver.eigenvectors();
+    Eigen::Vector3f eigenValues = eigen_solver.eigenvalues();
+    
+    // Get principal axes (sorted by eigenvalue)
+    std::vector<std::pair<float, int>> eigen_pairs;
+    for (int i = 0; i < 3; ++i) {
+        eigen_pairs.push_back(std::make_pair(eigenValues(i), i));
+    }
+    std::sort(eigen_pairs.begin(), eigen_pairs.end(), std::greater<std::pair<float, int>>());
+    
+    Eigen::Vector3f x_axis = eigenVectors.col(eigen_pairs[2].second); // Shortest
+    Eigen::Vector3f y_axis = eigenVectors.col(eigen_pairs[0].second); // Longest
+    Eigen::Vector3f z_axis = eigenVectors.col(eigen_pairs[1].second); // Medium
+    
+    // Project points onto principal axes to get dimensions
+    float min_x = std::numeric_limits<float>::max();
+    float max_x = std::numeric_limits<float>::lowest();
+    float min_y = std::numeric_limits<float>::max();
+    float max_y = std::numeric_limits<float>::lowest();
+    float min_z = std::numeric_limits<float>::max();
+    float max_z = std::numeric_limits<float>::lowest();
+    
+    for (const auto& point : box_cloud->points) {
+        Eigen::Vector3f pt(point.x - centroid[0], point.y - centroid[1], point.z - centroid[2]);
+        float proj_x = pt.dot(x_axis);
+        float proj_y = pt.dot(y_axis);
+        float proj_z = pt.dot(z_axis);
+        
+        min_x = std::min(min_x, proj_x); max_x = std::max(max_x, proj_x);
+        min_y = std::min(min_y, proj_y); max_y = std::max(max_y, proj_y);
+        min_z = std::min(min_z, proj_z); max_z = std::max(max_z, proj_z);
+    }
+    
+    // Calculate dimensions and sort them (a <= b <= c)
+    std::vector<double> dimensions = {
+        static_cast<double>(max_x - min_x),
+        static_cast<double>(max_y - min_y),
+        static_cast<double>(max_z - min_z)
+    };
+    std::sort(dimensions.begin(), dimensions.end());
+    
+    dims.dim_a = dimensions[0];  // Shortest
+    dims.dim_b = dimensions[1];  // Medium
+    dims.dim_c = dimensions[2];  // Longest
+    
+    return dims;
+}
+
+// Match detected dimensions to known boxes
+std::pair<PointCloudNode::KnownBoxDimensions, double> PointCloudNode::matchToKnownBox(
+    const KnownBoxDimensions& detected_dims)
+{
+    double best_match_score = std::numeric_limits<double>::max();
+    KnownBoxDimensions best_match;
+    best_match.box_type = "Unknown";
+    
+    for (const auto& known_box : known_boxes_) {
+        // Calculate difference between detected and known dimensions
+        double diff_a = std::abs(detected_dims.dim_a - known_box.dim_a);
+        double diff_b = std::abs(detected_dims.dim_b - known_box.dim_b);
+        double diff_c = std::abs(detected_dims.dim_c - known_box.dim_c);
+        
+        double total_diff = diff_a + diff_b + diff_c;
+        
+        if (total_diff < best_match_score) {
+            best_match_score = total_diff;
+            best_match = known_box;
+        }
+    }
+    
+    // Calculate confidence (lower difference = higher confidence)
+    // Adjusted tolerance for your box sizes (5cm total error = 0% confidence)
+    double confidence = std::max(0.0, 1.0 - (best_match_score / 0.05));
+    
+    return std::make_pair(best_match, confidence);
+}
+
+// Determine face type based on known dimensions
+PointCloudNode::DetectedFace PointCloudNode::determineFaceType(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& box_cloud,
+    const Eigen::Vector3f& normal_vector,
+    const std::string& normal_direction)
+{
+    DetectedFace face;
+    face.normal_direction = normal_direction;
+    face.confidence = 0.0;
+    
+    // Estimate box dimensions from point cloud
+    KnownBoxDimensions detected_dims = estimateBoxDimensions(box_cloud);
+    
+    // Match to known box
+    auto match_result = matchToKnownBox(detected_dims);
+    KnownBoxDimensions matched_box = match_result.first;
+    double match_confidence = match_result.second;
+    
+    if (match_confidence < 0.5) {
+        face.face_type = "Unknown";
+        face.confidence = match_confidence;
+        return face;
+    }
+    
+    // Calculate which two dimensions are visible based on the viewing direction
+    // The dimension parallel to the normal vector is the hidden one
+    
+    // Get projected 2D dimensions (visible on the face)
+    // This is a simplified approach - you might need to refine based on your camera setup
+    pcl::PointXYZRGB min_pt, max_pt;
+    pcl::getMinMax3D(*box_cloud, min_pt, max_pt);
+    
+    double visible_dim1 = max_pt.x - min_pt.x;
+    double visible_dim2 = max_pt.y - min_pt.y;
+    
+    // Compare visible dimensions with possible face combinations
+    double tolerance = 0.01; // 1cm tolerance for your precise box dimensions
+    
+    // Check all possible face combinations: (a,b), (a,c), (b,c)
+    std::vector<std::tuple<std::string, double, double, double, double>> face_options = {
+        {"(a,b)", matched_box.dim_a, matched_box.dim_b, matched_box.dim_c, 
+         std::abs(visible_dim1 - matched_box.dim_a) + std::abs(visible_dim2 - matched_box.dim_b)},
+        {"(a,c)", matched_box.dim_a, matched_box.dim_c, matched_box.dim_b,
+         std::abs(visible_dim1 - matched_box.dim_a) + std::abs(visible_dim2 - matched_box.dim_c)},
+        {"(b,c)", matched_box.dim_b, matched_box.dim_c, matched_box.dim_a,
+         std::abs(visible_dim1 - matched_box.dim_b) + std::abs(visible_dim2 - matched_box.dim_c)}
+    };
+    
+    // Find best matching face type
+    auto best_face = *std::min_element(face_options.begin(), face_options.end(),
+        [](const auto& a, const auto& b) { return std::get<4>(a) < std::get<4>(b); });
+    
+    face.face_type = std::get<0>(best_face);
+    face.length1 = std::get<1>(best_face);
+    face.length2 = std::get<2>(best_face);
+    face.perpendicular_dim = std::get<3>(best_face);
+    face.confidence = std::max(0.0, 1.0 - std::get<4>(best_face) / 0.03); // 3cm error = 0% confidence
+    
+    return face;
 }
 
 } // namespace box_detection

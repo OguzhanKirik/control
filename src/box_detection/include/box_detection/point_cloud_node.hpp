@@ -85,6 +85,24 @@ private:
   double ransac_distance_threshold_;
   int ransac_max_iterations_;
   double plane_area_threshold_;
+  
+  // Known box dimensions (add your actual box dimensions here)
+  struct KnownBoxDimensions {
+    double dim_a;  // Shortest dimension
+    double dim_b;  // Medium dimension  
+    double dim_c;  // Longest dimension
+    std::string box_type;
+  };
+  
+  std::vector<KnownBoxDimensions> known_boxes_;
+  
+  struct DetectedFace {
+    std::string face_type;     // "(a,b)", "(a,c)", or "(b,c)"
+    double length1, length2;   // Visible dimensions
+    double perpendicular_dim;  // Hidden dimension
+    double confidence;         // Match confidence
+    std::string normal_direction; // "TOP", "FRONT", etc.
+  };
 
   // Callback functions
   void colorImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg);
@@ -106,6 +124,21 @@ private:
   void segmentPlanesInBoxes(
     const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& box_clouds,
     const std::vector<cv::Rect>& bounding_boxes);
+    
+  // Enhanced face detection with known dimensions
+  DetectedFace determineFaceType(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& box_cloud,
+    const Eigen::Vector3f& normal_vector,
+    const std::string& normal_direction);
+    
+  // Estimate box dimensions from point cloud
+  KnownBoxDimensions estimateBoxDimensions(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& box_cloud);
+  
+  // Match detected dimensions to known boxes
+  std::pair<KnownBoxDimensions, double> matchToKnownBox(const KnownBoxDimensions& detected_dims);
+  
+  // Initialize known box dimensions
+  void initializeKnownBoxes();
     
   // 6D pose estimation function
   void estimate6DPoseAndVisualize(

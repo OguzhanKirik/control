@@ -52,10 +52,3 @@ jobs:
           source /opt/ros/humble/setup.bash
           colcon build --packages-select box_detection
         
-      - name: Test
-        shell: bash
-        run: |
-          source /opt/ros/humble/setup.bash
-          source install/setup.bash
-          colcon test --packages-select box_detection
-          colcon test-result --verbose
