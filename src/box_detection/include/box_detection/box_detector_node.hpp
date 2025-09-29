@@ -12,10 +12,11 @@
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <geometry_msgs/msg/point.hpp>
 #include <std_msgs/msg/string.hpp>
-// TF disabled
+// TF disabled - moved to dedicated point_cloud_node
 // #include <tf2_ros/buffer.h>
 // #include <tf2_ros/transform_listener.h>
 // #include <geometry_msgs/msg/transform_stamped.hpp>
+// #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 namespace box_detection
 {
@@ -35,7 +36,6 @@ private:
   //rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_sub_;
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr boundingBox_image_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr boundingBox_coordinates_pub_;
-
 
   // Image transport
   std::shared_ptr<image_transport::ImageTransport> it_;

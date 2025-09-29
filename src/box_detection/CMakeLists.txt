@@ -53,21 +53,26 @@ include_directories(
 #include_directories(include)
 add_library(${PROJECT_NAME} SHARED 
     src/box_detection/box_detector_node.cpp
-    
+    src/box_detection/point_cloud_node.cpp
 )
 ament_target_dependencies(${PROJECT_NAME} ${dependencies})
 target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES})
 
-##executable
+##executables
 add_executable(box_detector src/box_detector_main.cpp)
 ament_target_dependencies(box_detector ${dependencies})
 target_link_libraries(box_detector ${PROJECT_NAME} ${PCL_LIBRARIES})
+
+add_executable(point_cloud_node src/point_cloud_main.cpp)
+ament_target_dependencies(point_cloud_node ${dependencies})
+target_link_libraries(point_cloud_node ${PROJECT_NAME} ${PCL_LIBRARIES})
 
 
 ##install
 install(TARGETS 
   ${PROJECT_NAME}
   box_detector
+  point_cloud_node
   ARCHIVE DESTINATION lib 
   LIBRARY DESTINATION lib 
   RUNTIME DESTINATION lib/${PROJECT_NAME} 

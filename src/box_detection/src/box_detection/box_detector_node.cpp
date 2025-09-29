@@ -8,6 +8,12 @@
 #include <pcl/point_types.h>
 #include <pcl/conversions.h>
 #include <pcl_conversions/pcl_conversions.h>
+// TF and PCL transform includes moved to point_cloud_node
+// #include <tf2_ros/buffer.h>
+// #include <tf2_ros/transform_listener.h>
+// #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+// #include <pcl/common/transforms.h>
+// #include <Eigen/Dense>
 // PCL filters
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/extract_indices.h>
@@ -240,7 +246,6 @@ void BoxDetector::detect2DBoxes()
     RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, 
                         "Detected %zu boxes from %zu contours", bounding_boxes.size(), contours.size());
 }
-
 
 } // namespace box_detection
 

@@ -1,5 +1,9 @@
 from launch import LaunchDescription
 from launch_ros.actions import Node
+
+
+from launch import LaunchDescription
+from launch_ros.actions import Node
 import os
 from ament_index_python.packages import get_package_share_directory
 
@@ -24,20 +28,21 @@ def generate_launch_description():
     )
 
 
-    # pointcloud_node = Node(
-    #         package='box_detection',
-    #         executable='point_cloud_node',
-    #         name='point_cloud_node',
-    #         output='screen',
-    #         parameters=[{
-    #             'target_frame': 'root_link',
-    #             'camera_frame': 'camera_color_optical_frame'
-    #         }]
-    # )
+    pointcloud_node = Node(
+            package='box_detection',
+            executable='point_cloud_node',
+            name='point_cloud_node',
+            output='screen',
+            parameters=[{
+                'target_frame': 'root_link',
+                'camera_frame': 'camera_color_optical_frame'
+    }]
+    )
 
 
     ld = LaunchDescription()
-    ld.add_action(box_detector_node)
+    #ld.add_action(box_detector_node)
     ld.add_action(pointcloud_node)
 
     return ld
+
