@@ -29,5 +29,5 @@
   ],
   "remoteUser": "root",
   "postCreateCommand": "apt-get update && rosdep update",
-  "postStartCommand": "source /opt/ros/humble/setup.bash && cd /home/oguz/neura_tasks_ws && colcon build --symlink-install"
+  "postStartCommand": "/bin/bash -c 'source /opt/ros/humble/setup.bash && cd /home/oguz/neura_tasks_ws && colcon build --symlink-install'"
 }
