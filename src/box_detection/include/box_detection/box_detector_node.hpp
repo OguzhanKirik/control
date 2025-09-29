@@ -10,6 +10,8 @@
 #include <image_transport/image_transport.hpp>
 #include <opencv2/opencv.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
+#include <geometry_msgs/msg/point.hpp>
+#include <std_msgs/msg/string.hpp>
 // TF disabled
 // #include <tf2_ros/buffer.h>
 // #include <tf2_ros/transform_listener.h>
@@ -31,6 +33,8 @@ private:
   image_transport::Subscriber depth_image_sub_;
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
   //rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_sub_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr boundingBox_image_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr boundingBox_coordinates_pub_;
 
 
   // Image transport
@@ -50,7 +54,6 @@ private:
 
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr clusters_pointcloud_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr annotated_image_pub_;
 
   // Callback functions
   void colorImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg);
