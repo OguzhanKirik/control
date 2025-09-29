@@ -21,6 +21,9 @@
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/common/transforms.h>
+#include <std_msgs/msg/string.hpp>
+#include <geometry_msgs/msg/point.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 
 namespace box_detection
 {
@@ -37,10 +40,17 @@ private:
   image_transport::Subscriber color_image_sub_;
   image_transport::Subscriber depth_image_sub_;
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr bounding_boxes_sub_;
   
   // Publisher
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_filtered_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr box_pointclouds_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr plane_markers_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr box_faces_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr box_poses_pub_;
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr box_coordinate_frames_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr box_pose_image_pub_;
 
   // TF components
   std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -57,6 +67,10 @@ private:
   bool has_camera_info_;
   bool first_image_logged_;
   
+  // Bounding boxes data
+  std::string current_bounding_boxes_;
+  bool has_bounding_boxes_;
+  
   // Camera intrinsics
   double fx_, fy_, cx_, cy_;
   std_msgs::msg::Header current_header_;
@@ -66,18 +80,42 @@ private:
   std::string camera_frame_;
   int noise_filter_neighbors_;
   double noise_filter_std_dev_;
+  
+  // RANSAC parameters
+  double ransac_distance_threshold_;
+  int ransac_max_iterations_;
+  double plane_area_threshold_;
 
   // Callback functions
   void colorImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg);
   void depthImageCallback(const sensor_msgs::msg::Image::ConstSharedPtr& msg);
   void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::ConstSharedPtr& msg);
+  void boundingBoxesCallback(const std_msgs::msg::String::ConstSharedPtr& msg);
   
   // Main processing function
   void generate3DPointCloud();
   
+  // Box-specific point cloud extraction
+  void extractBoxPointClouds();
+  
   // Noise removal function
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr applyStatisticalNoiseRemoval(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud);
+    
+  // RANSAC plane segmentation function
+  void segmentPlanesInBoxes(
+    const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& box_clouds,
+    const std::vector<cv::Rect>& bounding_boxes);
+    
+  // 6D pose estimation function
+  void estimate6DPoseAndVisualize(
+    const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& box_clouds,
+    const std::vector<cv::Rect>& bounding_boxes);
+    
+  // Draw coordinate systems on image
+  void drawCoordinateSystemsOnImage(
+    const std::vector<Eigen::Vector3f>& centroids,
+    const std::vector<Eigen::Matrix3f>& rotations);
 };
 
 } // namespace box_detection

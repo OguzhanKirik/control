@@ -1,0 +1,33 @@
+{
+  "name": "Smart Palletizing ROS2 DevContainer",
+  "build": {
+    "dockerfile": "../Dockerfile"
+  },
+  "workspaceFolder": "/home/oguz/neura_tasks_ws",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash",
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "ros.distro": "humble"
+      },
+      "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-python.python",
+        "ms-vscode.cpptools",
+        "ms-vscode.cpptools-extension-pack",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake",
+        "redhat.vscode-yaml",
+        "ms-python.flake8"
+      ]
+    }
+  },
+  "forwardPorts": [11311, 5000, 8080],
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/home/oguz/neura_tasks_ws,type=bind"
+  ],
+  "remoteUser": "root",
+  "postCreateCommand": "apt-get update && rosdep update",
+  "postStartCommand": "source /opt/ros/humble/setup.bash && cd /home/oguz/neura_tasks_ws && colcon build --symlink-install"
+}

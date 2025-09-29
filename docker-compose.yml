@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  smart-palletizing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smart-palletizing-dev
+    volumes:
+      - .:/home/oguz/neura_tasks_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=42
+    network_mode: host
+    stdin_open: true
+    tty: true
+    privileged: true
+    devices:
+      - /dev/dri:/dev/dri  # For hardware acceleration
+    command: bash -c "source /opt/ros/humble/setup.bash && source /home/oguz/neura_tasks_ws/install/setup.bash && exec bash"
+
+  # Service for running just the nodes
+  box-detection:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: box-detection-runtime
+    volumes:
+      - .:/home/oguz/neura_tasks_ws
+    environment:
+      - ROS_DOMAIN_ID=42
+    network_mode: host
+    depends_on:
+      - smart-palletizing
+    command: bash -c "source /opt/ros/humble/setup.bash && source /home/oguz/neura_tasks_ws/install/setup.bash && ros2 launch box_detection box_detection_full.launch.py"
