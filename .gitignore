@@ -2,6 +2,8 @@
 build/
 install/
 log/
+smart_palletizing_data/
+
 
 # Colcon metadata
 colcon_command_prefix.sh

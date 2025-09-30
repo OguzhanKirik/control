@@ -128,7 +128,6 @@ private:
   // Enhanced face detection with known dimensions
   DetectedFace determineFaceType(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& box_cloud,
-    const Eigen::Vector3f& normal_vector,
     const std::string& normal_direction);
     
   // Estimate box dimensions from point cloud
@@ -149,6 +148,41 @@ private:
   void drawCoordinateSystemsOnImage(
     const std::vector<Eigen::Vector3f>& centroids,
     const std::vector<Eigen::Matrix3f>& rotations);
+    
+  // Enhanced 6D pose estimation helper functions
+  Eigen::Matrix3f estimateOrientationWithFaceConstraints(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& filtered_cloud,
+    const DetectedFace& detected_face);
+    
+  Eigen::Matrix3f estimateOrientationWithPCA(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& filtered_cloud);
+    
+  Eigen::Vector3f measureBoxDimensions(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& filtered_cloud,
+    const Eigen::Matrix3f& rotation_matrix);
+    
+  Eigen::Matrix3f alignAxesWithDimensions(
+    const Eigen::Matrix3f& pca_rotation,
+    const Eigen::Vector3f& measured_dims,
+    const Eigen::Vector3f& expected_dims);
+    
+  Eigen::Vector3f refineCentroidWithGeometry(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& filtered_cloud,
+    const Eigen::Vector3f& initial_centroid,
+    const Eigen::Matrix3f& rotation_matrix,
+    const Eigen::Vector3f& expected_dimensions);
+    
+  // Temporary function to save image with coordinates
+  void saveImageWithCoordinates(
+    const std::vector<Eigen::Vector3f>& centroids,
+    const std::vector<Eigen::Matrix3f>& rotations,
+    const std::string& filename_prefix = "pose_detection");
+    
+  // Temporary function: Save RGB image with coordinate annotations
+  void saveAnnotatedImage(
+    const std::vector<Eigen::Vector3f>& centroids,
+    const std::vector<Eigen::Matrix3f>& rotations,
+    const std::string& filename_prefix = "annotated_image");
 };
 
 } // namespace box_detection
