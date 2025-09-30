@@ -51,7 +51,7 @@ PointCloudNode::PointCloudNode() : Node("point_cloud_node")
 
   // Publisher for 3D point cloud
   pointcloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/point_cloud_node/pointcloud", 10);
-  pointcloud_filtered_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/point_cloud_node/pointcloudfiltered", 10);
+  //pointcloud_filtered_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/point_cloud_node/pointcloudfiltered", 10);
   box_pointclouds_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/point_cloud_node/box_pointclouds", 10);
   plane_markers_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/point_cloud_node/plane_markers", 10);
   box_faces_pub_ = this->create_publisher<std_msgs::msg::String>("/point_cloud_node/box_faces", 10);
@@ -280,7 +280,7 @@ void PointCloudNode::generate3DPointCloud()
         pcl::transformPointCloud(*cloud, *transformed_cloud, transform);
         
         // Apply noise removal filters
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud = applyStatisticalNoiseRemoval(transformed_cloud);
+        //pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud = applyStatisticalNoiseRemoval(transformed_cloud);
         
         // Convert to ROS message and publish
         sensor_msgs::msg::PointCloud2 output_msg;
@@ -289,26 +289,26 @@ void PointCloudNode::generate3DPointCloud()
         output_msg.header.frame_id = target_frame_;
     
   
-        sensor_msgs::msg::PointCloud2 output_filtered_msg;
-        pcl::toROSMsg(*filtered_cloud, output_filtered_msg);
-        output_filtered_msg.header = current_header_;
-        output_filtered_msg.header.frame_id = target_frame_;
+        // sensor_msgs::msg::PointCloud2 output_filtered_msg;
+        // pcl::toROSMsg(*filtered_cloud, output_filtered_msg);
+        // output_filtered_msg.header = current_header_;
+        // output_filtered_msg.header.frame_id = target_frame_;
   
 
         pointcloud_pub_->publish(output_msg);
-        pointcloud_filtered_pub_->publish(output_filtered_msg);
+        //pointcloud_filtered_pub_->publish(output_filtered_msg);
 
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 3000,
                             "Published 3D point cloud: %d valid points -> %zu filtered points (%.1f%% kept), frame: %s", 
-                            valid_points, filtered_cloud->points.size(), 
-                            (filtered_cloud->points.size() * 100.0) / valid_points, target_frame_.c_str());
+                            valid_points, transformed_cloud->points.size(), 
+                            (transformed_cloud->points.size() * 100.0) / valid_points, target_frame_.c_str());
                             
     } catch (const std::exception& e) {
         RCLCPP_ERROR(this->get_logger(), "Error in generate3DPointCloud: %s", e.what());
     }
 }
 
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr PointCloudNode::applyStatisticalNoiseRemoval(
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr PointCloudNode::applyRANSACNoiseRemoval(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud)
 {
     // Create output cloud
@@ -320,13 +320,35 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr PointCloudNode::applyStatisticalNoiseRemo
             RCLCPP_WARN(this->get_logger(), "Input cloud is empty, skipping noise removal");
             return input_cloud;
         }
+
+        // RANSAC plane segmentation
+        pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+        pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+        pcl::SACSegmentation<pcl::PointXYZRGB> seg;
         
-        // Statistical Outlier Removal
-        pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
-        sor.setInputCloud(input_cloud);
-        sor.setMeanK(noise_filter_neighbors_);
-        sor.setStddevMulThresh(noise_filter_std_dev_);
-        sor.filter(*filtered_cloud);
+        seg.setOptimizeCoefficients(true);
+        seg.setModelType(pcl::SACMODEL_PLANE);
+        seg.setMethodType(pcl::SAC_RANSAC);
+        seg.setMaxIterations(ransac_max_iterations_);
+        seg.setDistanceThreshold(ransac_distance_threshold_);
+        
+        seg.setInputCloud(input_cloud);
+        seg.segment(*inliers, *coefficients);
+        
+
+        
+        // Extract the plane points (these are the filtered/clean points)
+        pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+        extract.setInputCloud(input_cloud);
+        extract.setIndices(inliers);
+        extract.setNegative(false);  // Keep the plane points (inliers)
+        extract.filter(*filtered_cloud);
+        
+        // Check if we found a reasonable plane
+        if (filtered_cloud->empty() || inliers->indices.size() < input_cloud->points.size() * 0.1) {
+            RCLCPP_DEBUG(this->get_logger(), "RANSAC found poor plane, returning original cloud");
+            return input_cloud;  // Return original if plane detection failed
+        }
         
         // Log filtering results
         size_t original_size = input_cloud->points.size();
@@ -334,13 +356,13 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr PointCloudNode::applyStatisticalNoiseRemo
         double removal_percentage = ((double)(original_size - filtered_size) / original_size) * 100.0;
         
         RCLCPP_DEBUG(this->get_logger(), 
-                    "Statistical noise removal: %zu -> %zu points (%.1f%% removed)", 
+                    "RANSAC noise removal: %zu -> %zu points (%.1f%% removed)", 
                     original_size, filtered_size, removal_percentage);
         
         return filtered_cloud;
         
     } catch (const std::exception& e) {
-        RCLCPP_ERROR(this->get_logger(), "Error in statistical noise removal: %s", e.what());
+        RCLCPP_ERROR(this->get_logger(), "Error in RANSAC noise removal: %s", e.what());
         return input_cloud;  // Return original cloud if filtering fails
     }
 }
@@ -532,12 +554,10 @@ void PointCloudNode::extractBoxPointClouds()
         // Apply transformation to combined cloud
         pcl::transformPointCloud(*combined_box_cloud, *transformed_box_cloud, transform);
         
-        // Apply noise removal filter
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_box_cloud = applyStatisticalNoiseRemoval(transformed_box_cloud);
         
         // Convert to ROS message and publish
         sensor_msgs::msg::PointCloud2 box_output_msg;
-        pcl::toROSMsg(*filtered_box_cloud, box_output_msg);
+        pcl::toROSMsg(*combined_box_cloud, box_output_msg);
         box_output_msg.header = current_header_;
         box_output_msg.header.frame_id = target_frame_;
         
@@ -545,7 +565,7 @@ void PointCloudNode::extractBoxPointClouds()
         
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 3000,
                             "Published box point clouds: %zu total points from %zu boxes, frame: %s", 
-                            filtered_box_cloud->points.size(), bounding_boxes.size(), target_frame_.c_str());
+                            combined_box_cloud->points.size(), bounding_boxes.size(), target_frame_.c_str());
                             
     } catch (const std::exception& e) {
         RCLCPP_ERROR(this->get_logger(), "Error in extractBoxPointClouds: %s", e.what());
@@ -574,72 +594,58 @@ void PointCloudNode::segmentPlanesInBoxes(
         RCLCPP_INFO(this->get_logger(), "Analyzing box %zu with %zu points", box_idx + 1, box_cloud->points.size());
         
         try {
-            // Apply noise removal first
-            pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud = applyStatisticalNoiseRemoval(box_cloud);
+
+            // **DIRECT FACE DETECTION APPROACH** - Skip RANSAC for face detection
+            // Enhanced face detection using known dimensions directly from bounding box
+            DetectedFace detected_face = determineFaceType(box_cloud, "FACE");
             
-            if (filtered_cloud->points.size() < 50) {
-                RCLCPP_WARN(this->get_logger(), "Box %zu: Too few points (%zu) for reliable plane detection", 
-                           box_idx + 1, filtered_cloud->points.size());
+            if (detected_face.confidence < 0.3) {
+                RCLCPP_WARN(this->get_logger(), "Box %zu: Low face detection confidence (%.1f%%), skipping", 
+                           box_idx + 1, detected_face.confidence * 100.0);
                 continue;
             }
             
-            // RANSAC plane segmentation
-            pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-            pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-            pcl::SACSegmentation<pcl::PointXYZRGB> seg;
-            
-            seg.setOptimizeCoefficients(true);
-            seg.setModelType(pcl::SACMODEL_PLANE);
-            seg.setMethodType(pcl::SAC_RANSAC);
-            seg.setMaxIterations(ransac_max_iterations_);
-            seg.setDistanceThreshold(ransac_distance_threshold_);
-            
-            seg.setInputCloud(filtered_cloud);
-            seg.segment(*inliers, *coefficients);
-            
-            if (inliers->indices.empty()) {
-                RCLCPP_WARN(this->get_logger(), "Box %zu: No plane found", box_idx + 1);
-                continue;
-            }
-            
-            // Extract the plane
-            pcl::PointCloud<pcl::PointXYZRGB>::Ptr plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-            pcl::ExtractIndices<pcl::PointXYZRGB> extract;
-            extract.setInputCloud(filtered_cloud);
-            extract.setIndices(inliers);
-            extract.setNegative(false);
-            extract.filter(*plane_cloud);
-            
-            if (plane_cloud->points.empty()) {
-                continue;
-            }
-            
-            // Calculate plane area (rough estimation using bounding box of plane points)
-            pcl::PointXYZRGB min_pt, max_pt;
-            pcl::getMinMax3D(*plane_cloud, min_pt, max_pt);
-            double plane_area = (max_pt.x - min_pt.x) * (max_pt.y - min_pt.y);
-            
-            if (plane_area < plane_area_threshold_) {
-                RCLCPP_WARN(this->get_logger(), "Box %zu: Plane area too small (%.4f m²)", box_idx + 1, plane_area);
-                continue;
-            }
-            
-            // Get plane normal vector (still needed for visualization)
-            Eigen::Vector3f normal(coefficients->values[0], coefficients->values[1], coefficients->values[2]);
-            normal.normalize();
-            
-            // Calculate plane centroid
+            // Calculate box centroid for visualization positioning
             Eigen::Vector4f centroid;
-            pcl::compute3DCentroid(*plane_cloud, centroid);
+            pcl::compute3DCentroid(*box_cloud, centroid);
             
-            // Enhanced face detection using known dimensions (focus on face type, not orientation)
-            DetectedFace detected_face = determineFaceType(filtered_cloud, "FACE");
+            // Calculate rough box area from bounding box (for logging purposes)
+            pcl::PointXYZRGB min_pt, max_pt;
+            pcl::getMinMax3D(*box_cloud, min_pt, max_pt);
+            double box_area = (max_pt.x - min_pt.x) * (max_pt.y - min_pt.y);
+            
+            // Optional: RANSAC plane segmentation for visualization only (plane normal arrows)
+            Eigen::Vector3f normal(0, 0, 1); // Default normal pointing up
+            bool has_plane_normal = false;
+            
+            // if (true) { // Set to false to completely skip RANSAC
+            //     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+            //     pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+            //     pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+                
+            //     seg.setOptimizeCoefficients(true);
+            //     seg.setModelType(pcl::SACMODEL_PLANE);
+            //     seg.setMethodType(pcl::SAC_RANSAC);
+            //     seg.setMaxIterations(ransac_max_iterations_);
+            //     seg.setDistanceThreshold(ransac_distance_threshold_);
+                
+            //     seg.setInputCloud(filtered_cloud);
+            //     seg.segment(*inliers, *coefficients);
+                
+            //     if (!inliers->indices.empty() && inliers->indices.size() > filtered_cloud->points.size() * 0.3) {
+            //         // Good plane found - use its normal for visualization
+            //         normal = Eigen::Vector3f(coefficients->values[0], coefficients->values[1], coefficients->values[2]);
+            //         normal.normalize();
+            //         has_plane_normal = true;
+                    
+            //         RCLCPP_DEBUG(this->get_logger(), "Box %zu: Found plane with %.1f%% inliers for normal visualization", 
+            //                    box_idx + 1, (double)inliers->indices.size() / filtered_cloud->points.size() * 100.0);
+            //     }
+            // }
             
             RCLCPP_INFO(this->get_logger(), 
-                       "Box %zu: Detected plane - %.1f%% points in plane (area: %.4f m²)", 
-                       box_idx + 1,
-                       (double)inliers->indices.size() / filtered_cloud->points.size() * 100.0,
-                       plane_area);
+                       "Box %zu: Direct face detection - %.3fx%.3f m bounding box (area: %.4f m²)", 
+                       box_idx + 1, max_pt.x - min_pt.x, max_pt.y - min_pt.y, box_area);
                        
             RCLCPP_INFO(this->get_logger(),
                        "  🎯 Face type: %s (confidence: %.1f%%), visible dims: %.3fx%.3f m, hidden dim: %.3f m",
@@ -655,10 +661,10 @@ void PointCloudNode::segmentPlanesInBoxes(
                                     ":confidence:" + std::to_string(detected_face.confidence) +
                                     ":visible_dims:" + std::to_string(detected_face.length1) + "x" + std::to_string(detected_face.length2) +
                                     ":hidden_dim:" + std::to_string(detected_face.perpendicular_dim) +
-                                    ":area:" + std::to_string(plane_area) +
+                                    ":area:" + std::to_string(box_area) +
                                     ":normal:" + std::to_string(normal.x()) + "," + std::to_string(normal.y()) + "," + std::to_string(normal.z());
             
-            // Create visualization marker for the plane with enhanced info
+            // Create visualization marker for the face with enhanced info
             visualization_msgs::msg::Marker marker;
             marker.header.frame_id = target_frame_;
             marker.header.stamp = this->get_clock()->now();
@@ -669,7 +675,7 @@ void PointCloudNode::segmentPlanesInBoxes(
             
             marker.pose.position.x = centroid[0];
             marker.pose.position.y = centroid[1];
-            marker.pose.position.z = centroid[2] + 0.05; // Slightly above the plane
+            marker.pose.position.z = centroid[2] + 0.05; // Slightly above the centroid
             marker.pose.orientation.w = 1.0;
             
             marker.scale.z = 0.025; // Text size
@@ -683,47 +689,49 @@ void PointCloudNode::segmentPlanesInBoxes(
             
             marker_array.markers.push_back(marker);
             
-            // Create arrow marker for normal vector
-            visualization_msgs::msg::Marker arrow_marker;
-            arrow_marker.header.frame_id = target_frame_;
-            arrow_marker.header.stamp = this->get_clock()->now();
-            arrow_marker.ns = "plane_normals";
-            arrow_marker.id = box_idx;
-            arrow_marker.type = visualization_msgs::msg::Marker::ARROW;
-            arrow_marker.action = visualization_msgs::msg::Marker::ADD;
-            
-            arrow_marker.pose.position.x = centroid[0];
-            arrow_marker.pose.position.y = centroid[1];
-            arrow_marker.pose.position.z = centroid[2];
-            
-            // Convert normal vector to quaternion for arrow orientation
-            Eigen::Vector3f z_axis(0, 0, 1);
-            Eigen::Vector3f rotation_axis = z_axis.cross(normal);
-            float rotation_angle = std::acos(z_axis.dot(normal));
-            
-            if (rotation_axis.norm() > 1e-6) {
-                rotation_axis.normalize();
-                tf2::Quaternion q;
-                q.setRotation(tf2::Vector3(rotation_axis.x(), rotation_axis.y(), rotation_axis.z()), rotation_angle);
-                arrow_marker.pose.orientation.x = q.x();
-                arrow_marker.pose.orientation.y = q.y();
-                arrow_marker.pose.orientation.z = q.z();
-                arrow_marker.pose.orientation.w = q.w();
-            } else {
-                arrow_marker.pose.orientation.w = 1.0;
+            // Create arrow marker for normal vector (only if RANSAC found a good plane)
+            if (has_plane_normal) {
+                visualization_msgs::msg::Marker arrow_marker;
+                arrow_marker.header.frame_id = target_frame_;
+                arrow_marker.header.stamp = this->get_clock()->now();
+                arrow_marker.ns = "plane_normals";
+                arrow_marker.id = box_idx;
+                arrow_marker.type = visualization_msgs::msg::Marker::ARROW;
+                arrow_marker.action = visualization_msgs::msg::Marker::ADD;
+                
+                arrow_marker.pose.position.x = centroid[0];
+                arrow_marker.pose.position.y = centroid[1];
+                arrow_marker.pose.position.z = centroid[2];
+                
+                // Convert normal vector to quaternion for arrow orientation
+                Eigen::Vector3f z_axis(0, 0, 1);
+                Eigen::Vector3f rotation_axis = z_axis.cross(normal);
+                float rotation_angle = std::acos(z_axis.dot(normal));
+                
+                if (rotation_axis.norm() > 1e-6) {
+                    rotation_axis.normalize();
+                    tf2::Quaternion q;
+                    q.setRotation(tf2::Vector3(rotation_axis.x(), rotation_axis.y(), rotation_axis.z()), rotation_angle);
+                    arrow_marker.pose.orientation.x = q.x();
+                    arrow_marker.pose.orientation.y = q.y();
+                    arrow_marker.pose.orientation.z = q.z();
+                    arrow_marker.pose.orientation.w = q.w();
+                } else {
+                    arrow_marker.pose.orientation.w = 1.0;
+                }
+                
+                arrow_marker.scale.x = 0.1;  // Arrow length
+                arrow_marker.scale.y = 0.01; // Arrow width
+                arrow_marker.scale.z = 0.01; // Arrow height
+                
+                arrow_marker.color.a = 0.8;
+                arrow_marker.color.r = 0.0;
+                arrow_marker.color.g = 1.0;
+                arrow_marker.color.b = 0.0;
+                
+                arrow_marker.lifetime = rclcpp::Duration::from_seconds(1.0);
+                marker_array.markers.push_back(arrow_marker);
             }
-            
-            arrow_marker.scale.x = 0.1;  // Arrow length
-            arrow_marker.scale.y = 0.01; // Arrow width
-            arrow_marker.scale.z = 0.01; // Arrow height
-            
-            arrow_marker.color.a = 0.8;
-            arrow_marker.color.r = 0.0;
-            arrow_marker.color.g = 1.0;
-            arrow_marker.color.b = 0.0;
-            
-            arrow_marker.lifetime = rclcpp::Duration::from_seconds(1.0);
-            marker_array.markers.push_back(arrow_marker);
             
         } catch (const std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "Error in plane segmentation for box %zu: %s", box_idx + 1, e.what());
@@ -770,15 +778,50 @@ void PointCloudNode::estimate6DPoseAndVisualize(
         }
         
         try {
-            // Apply noise removal first - use the filtered point cloud
-            pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud = applyStatisticalNoiseRemoval(box_cloud);
+            // // Apply noise removal first - use the filtered point cloud
+            pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud = applyRANSACNoiseRemoval(box_cloud);
             
             if (filtered_cloud->points.size() < 30) {
                 RCLCPP_WARN(this->get_logger(), "Box %zu: Too few points (%zu) for reliable pose estimation", 
                            box_idx + 1, filtered_cloud->points.size());
                 continue;
             }
+
+            // RANSAC plane segmentation
+            pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+            pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+            pcl::SACSegmentation<pcl::PointXYZRGB> seg;
             
+            seg.setOptimizeCoefficients(true);
+            seg.setModelType(pcl::SACMODEL_PLANE);
+            seg.setMethodType(pcl::SAC_RANSAC);
+            seg.setMaxIterations(ransac_max_iterations_);
+            seg.setDistanceThreshold(ransac_distance_threshold_);
+            
+            seg.setInputCloud(box_cloud);
+            seg.segment(*inliers, *coefficients);
+            
+            if (inliers->indices.empty()) {
+                RCLCPP_WARN(this->get_logger(), "Box %zu: No plane found", box_idx + 1);
+                continue;
+            }
+            
+            // Extract the plane
+            pcl::PointCloud<pcl::PointXYZRGB>::Ptr plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+            pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+            extract.setInputCloud(box_cloud);
+            extract.setIndices(inliers);
+            extract.setNegative(false);
+            extract.filter(*plane_cloud);
+            
+            if (plane_cloud->points.empty()) {
+                continue;
+            }
+
+
+
+
+
             // **STEP 1: GET FACE DETECTION INFORMATION**
             DetectedFace detected_face = determineFaceType(filtered_cloud, "FACE");
             

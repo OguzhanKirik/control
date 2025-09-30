@@ -44,7 +44,7 @@ private:
   
   // Publisher
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_filtered_pub_;
+  //rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_filtered_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr box_pointclouds_pub_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr plane_markers_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr box_faces_pub_;
@@ -117,7 +117,7 @@ private:
   void extractBoxPointClouds();
   
   // Noise removal function
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr applyStatisticalNoiseRemoval(
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr applyRANSACNoiseRemoval(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud);
     
   // RANSAC plane segmentation function
