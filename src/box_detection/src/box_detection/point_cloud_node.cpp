@@ -1002,11 +1002,11 @@ void PointCloudNode::estimate6DPoseAndVisualize(
     if (!box_centroids.empty()) {
         drawCoordinateSystemsOnImage(box_centroids, box_rotations);
         
-        // TEMPORARY: Save annotated image to disk
-        saveAnnotatedImage(box_centroids, box_rotations, "box_pose_detection");
+        // TEMPORARY: Save annotated image to disk - COMMENTED OUT
+        // saveAnnotatedImage(box_centroids, box_rotations, "box_pose_detection");
         
-        // TEMPORARY: Save RGB image with 3D coordinates to /home/oguz/neura_tasks_ws
-        saveImageWithCoordinates(box_centroids, box_rotations, "pose_coordinates");
+        // TEMPORARY: Save RGB image with 3D coordinates to /home/oguz/neura_tasks_ws - COMMENTED OUT
+        // saveImageWithCoordinates(box_centroids, box_rotations, "pose_coordinates");
     }
     
     // Publish pose data
@@ -1671,7 +1671,8 @@ Eigen::Vector3f PointCloudNode::refineCentroidWithGeometry(
     return refined_centroid;
 }
 
-// Temporary function: Save RGB image with coordinate annotations
+/*
+// Temporary function: Save RGB image with coordinate annotations - COMMENTED OUT
 void PointCloudNode::saveAnnotatedImage(
     const std::vector<Eigen::Vector3f>& centroids,
     const std::vector<Eigen::Matrix3f>& rotations,
@@ -1978,5 +1979,6 @@ void PointCloudNode::saveImageWithCoordinates(
         RCLCPP_ERROR(this->get_logger(), "Error in saveImageWithCoordinates: %s", e.what());
     }
 }
+*/
 
 } // namespace box_detection

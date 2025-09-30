@@ -172,7 +172,8 @@ private:
     const Eigen::Matrix3f& rotation_matrix,
     const Eigen::Vector3f& expected_dimensions);
     
-  // Temporary function to save image with coordinates
+  // Temporary function to save image with coordinates - COMMENTED OUT
+  /*
   void saveImageWithCoordinates(
     const std::vector<Eigen::Vector3f>& centroids,
     const std::vector<Eigen::Matrix3f>& rotations,
@@ -183,6 +184,7 @@ private:
     const std::vector<Eigen::Vector3f>& centroids,
     const std::vector<Eigen::Matrix3f>& rotations,
     const std::string& filename_prefix = "annotated_image");
+  */
 };
 
 } // namespace box_detection
