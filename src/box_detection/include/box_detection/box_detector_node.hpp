@@ -63,6 +63,9 @@ private:
 
   void detect2DBoxes(); 
 
+  // TEMPORARY: Save 2D box detection image to local computer - COMMENTED OUT
+  // void saveDetectionImage(const cv::Mat& annotated_image, const std::string& filename_prefix = "2d_detection"); 
+
 };
 
 } // namespace box_detection

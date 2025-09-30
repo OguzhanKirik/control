@@ -28,6 +28,12 @@ The **box_detector** node is dedicated to detecting boxes in RGB camera images u
 9. **Bounding Box Generation** - Create rectangular bounding boxes around valid contours
 10. **Visualization & Publishing** - Annotate image with colored boxes and publish coordinates
 
+**Example Result:**
+
+![2D Box Detection](doc/2d_box_detection.png)
+
+*Figure: 2D box detection results showing detected bounding boxes overlaid on the camera image. Each box is highlighted with colored rectangles and labeled with box numbers and dimensions.*
+
 ### 2. Planar Patches Detection (3D)
 
 The **segmentPlanesInBoxes** function in the point_cloud_node performs direct face detection using dimensional analysis instead of traditional RANSAC plane segmentation. This approach is optimized for box detection with known dimensions.
@@ -104,6 +110,12 @@ The **estimate6DPoseAndVisualize** function implements a sophisticated 6D pose e
    - **Orientation:** Quaternion (x, y, z, w) representing 3D rotation
    - **Metadata:** Box type, confidence, estimated dimensions
    - **Visualization:** Generate coordinate frame markers for RViz
+
+**Example Result:**
+
+![Pose Coordinates](doc/pose_coordinates.png)
+
+*Figure: 6D pose estimation results showing detected boxes with coordinate frames overlaid on the camera image. Each box displays its estimated 3D position and orientation with X (red), Y (green), and Z (blue) axes.*
 
 
 ## Features

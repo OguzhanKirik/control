@@ -21,6 +21,10 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/search/kdtree.h>
 #include <visualization_msgs/msg/marker_array.hpp>
+// TEMPORARY: Includes for image saving functionality
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 
 namespace box_detection {
 
@@ -237,6 +241,9 @@ void BoxDetector::detect2DBoxes()
     auto img_msg = cv_bridge::CvImage(current_header_, sensor_msgs::image_encodings::BGR8, bbox_image).toImageMsg();
     boundingBox_image_pub_->publish(*img_msg);
     
+    // TEMPORARY: Save 2D detection image to local computer - COMMENTED OUT
+    // saveDetectionImage(bbox_image, "2d_box_detection");
+    
     // Publish bounding box coordinates
     auto coord_msg = std_msgs::msg::String();
     coord_msg.data = coordinates_str;
@@ -246,6 +253,46 @@ void BoxDetector::detect2DBoxes()
     RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, 
                         "Detected %zu boxes from %zu contours", bounding_boxes.size(), contours.size());
 }
+
+/*
+// TEMPORARY: Save 2D box detection image to local computer - COMMENTED OUT
+void BoxDetector::saveDetectionImage(const cv::Mat& annotated_image, const std::string& filename_prefix)
+{
+    if (annotated_image.empty()) {
+        RCLCPP_WARN(this->get_logger(), "Cannot save empty detection image");
+        return;
+    }
+    
+    try {
+        // Generate filename with timestamp
+        auto now = std::chrono::system_clock::now();
+        auto time_t = std::chrono::system_clock::to_time_t(now);
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch()) % 1000;
+        
+        std::stringstream ss;
+        ss << "/home/oguz/neura_tasks_ws/" << filename_prefix << "_" 
+           << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S") 
+           << "_" << std::setfill('0') << std::setw(3) << ms.count() << ".png";
+        
+        std::string filename = ss.str();
+        
+        // Save the image
+        bool success = cv::imwrite(filename, annotated_image);
+        
+        if (success) {
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                               "📸 Saved 2D detection image: %s (size: %dx%d)", 
+                               filename.c_str(), annotated_image.cols, annotated_image.rows);
+        } else {
+            RCLCPP_ERROR(this->get_logger(), "❌ Failed to save 2D detection image: %s", filename.c_str());
+        }
+        
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Error in saveDetectionImage: %s", e.what());
+    }
+}
+*/
 
 } // namespace box_detection
 

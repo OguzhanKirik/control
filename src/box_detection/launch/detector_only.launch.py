@@ -38,6 +38,6 @@ def generate_launch_description():
 
     ld = LaunchDescription()
     ld.add_action(box_detector_node)
-    ld.add_action(pointcloud_node)
+    #ld.add_action(pointcloud_node)
 
     return ld
