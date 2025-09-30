@@ -618,30 +618,6 @@ void PointCloudNode::segmentPlanesInBoxes(
             Eigen::Vector3f normal(0, 0, 1); // Default normal pointing up
             bool has_plane_normal = false;
             
-            // if (true) { // Set to false to completely skip RANSAC
-            //     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-            //     pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-            //     pcl::SACSegmentation<pcl::PointXYZRGB> seg;
-                
-            //     seg.setOptimizeCoefficients(true);
-            //     seg.setModelType(pcl::SACMODEL_PLANE);
-            //     seg.setMethodType(pcl::SAC_RANSAC);
-            //     seg.setMaxIterations(ransac_max_iterations_);
-            //     seg.setDistanceThreshold(ransac_distance_threshold_);
-                
-            //     seg.setInputCloud(filtered_cloud);
-            //     seg.segment(*inliers, *coefficients);
-                
-            //     if (!inliers->indices.empty() && inliers->indices.size() > filtered_cloud->points.size() * 0.3) {
-            //         // Good plane found - use its normal for visualization
-            //         normal = Eigen::Vector3f(coefficients->values[0], coefficients->values[1], coefficients->values[2]);
-            //         normal.normalize();
-            //         has_plane_normal = true;
-                    
-            //         RCLCPP_DEBUG(this->get_logger(), "Box %zu: Found plane with %.1f%% inliers for normal visualization", 
-            //                    box_idx + 1, (double)inliers->indices.size() / filtered_cloud->points.size() * 100.0);
-            //     }
-            // }
             
             RCLCPP_INFO(this->get_logger(), 
                        "Box %zu: Direct face detection - %.3fx%.3f m bounding box (area: %.4f m²)", 
@@ -787,36 +763,36 @@ void PointCloudNode::estimate6DPoseAndVisualize(
                 continue;
             }
 
-            // RANSAC plane segmentation
-            pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-            pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-            pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+            // // RANSAC plane segmentation
+            // pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+            // pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+            // pcl::SACSegmentation<pcl::PointXYZRGB> seg;
             
-            seg.setOptimizeCoefficients(true);
-            seg.setModelType(pcl::SACMODEL_PLANE);
-            seg.setMethodType(pcl::SAC_RANSAC);
-            seg.setMaxIterations(ransac_max_iterations_);
-            seg.setDistanceThreshold(ransac_distance_threshold_);
+            // seg.setOptimizeCoefficients(true);
+            // seg.setModelType(pcl::SACMODEL_PLANE);
+            // seg.setMethodType(pcl::SAC_RANSAC);
+            // seg.setMaxIterations(ransac_max_iterations_);
+            // seg.setDistanceThreshold(ransac_distance_threshold_);
             
-            seg.setInputCloud(box_cloud);
-            seg.segment(*inliers, *coefficients);
+            // seg.setInputCloud(box_cloud);
+            // seg.segment(*inliers, *coefficients);
             
-            if (inliers->indices.empty()) {
-                RCLCPP_WARN(this->get_logger(), "Box %zu: No plane found", box_idx + 1);
-                continue;
-            }
+            // if (inliers->indices.empty()) {
+            //     RCLCPP_WARN(this->get_logger(), "Box %zu: No plane found", box_idx + 1);
+            //     continue;
+            // }
             
-            // Extract the plane
-            pcl::PointCloud<pcl::PointXYZRGB>::Ptr plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-            pcl::ExtractIndices<pcl::PointXYZRGB> extract;
-            extract.setInputCloud(box_cloud);
-            extract.setIndices(inliers);
-            extract.setNegative(false);
-            extract.filter(*plane_cloud);
+            // // Extract the plane
+            // pcl::PointCloud<pcl::PointXYZRGB>::Ptr plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+            // pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+            // extract.setInputCloud(box_cloud);
+            // extract.setIndices(inliers);
+            // extract.setNegative(false);
+            // extract.filter(*plane_cloud);
             
-            if (plane_cloud->points.empty()) {
-                continue;
-            }
+            // if (plane_cloud->points.empty()) {
+            //     continue;
+            // }
 
 
 
