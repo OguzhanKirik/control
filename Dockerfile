@@ -1,76 +1,41 @@
-FROM ros:humble-ros-base
+# Use the official ROS 2 Humble base image
+FROM osrf/ros:humble-desktop-full
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=humble
+ENV WORKSPACE_DIR=/home/oguz/control_ws
 
-# Install system dependencies
+# Install essential development tools and MoveIt
 RUN apt-get update && apt-get install -y \
-    # Build tools
     build-essential \
     cmake \
     git \
-    wget \
-    curl \
-    # ROS2 packages
+    python3-pip \
     python3-colcon-common-extensions \
     python3-rosdep \
-    python3-vcstool \
-    # Computer vision and PCL dependencies
-    ros-humble-cv-bridge \
-    ros-humble-image-transport \
-    ros-humble-geometry-msgs \
-    ros-humble-sensor-msgs \
-    ros-humble-visualization-msgs \
-    ros-humble-tf2 \
-    ros-humble-tf2-ros \
-    ros-humble-tf2-geometry-msgs \
-    ros-humble-pcl-conversions \
-    ros-humble-pcl-msgs \
-    # OpenCV and computer vision
-    python3-opencv \
-    libopencv-dev \
-    libopencv-contrib-dev \
-    # PCL (Point Cloud Library)
-    libpcl-dev \
-    pcl-tools \
-    # Additional utilities
-    nano \
     vim \
-    htop \
-    tree \
-    # Development tools
-    gdb \
-    valgrind \
+    ros-humble-moveit \
+    ros-humble-moveit-ros-planning-interface \
+    ros-humble-moveit-core \
+    ros-humble-moveit-ros-planning \
+    ros-humble-moveit-common \
+    ros-humble-moveit-configs-utils \
+    ros-humble-moveit-simple-controller-manager \
     && rm -rf /var/lib/apt/lists/*
 
 # Initialize rosdep
-RUN rosdep init || echo "rosdep already initialized"
+RUN rosdep init || true
+RUN rosdep update
 
-# Set up workspace
-WORKDIR /home/oguz/neura_tasks_ws
+# Create workspace directory
+RUN mkdir -p $WORKSPACE_DIR/src
 
-# Copy workspace files
-COPY . /home/oguz/neura_tasks_ws/
+# Set up ROS environment
+RUN echo "source /opt/ros/humble/setup.bash" >> /etc/bash.bashrc
 
-# Update rosdep and install dependencies
-RUN rosdep update && \
-    rosdep install --from-paths src --ignore-src -r -y
+# Set working directory
+WORKDIR $WORKSPACE_DIR
 
-# Build the workspace
-RUN . /opt/ros/humble/setup.sh && \
-    colcon build --symlink-install
-
-# Set up environment
-RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc && \
-    echo "source /home/oguz/neura_tasks_ws/install/setup.bash" >> ~/.bashrc && \
-    echo "export ROS_DOMAIN_ID=42" >> ~/.bashrc
-
-# Expose common ROS ports
-EXPOSE 11311 5000 8080
-
-# Set up shell
-SHELL ["/bin/bash", "-c"]
-
-# Default command
-CMD ["bash", "-c", "source /opt/ros/humble/setup.bash && source /home/oguz/neura_tasks_ws/install/setup.bash && exec bash"]
+# Set default command
+CMD ["/bin/bash"]

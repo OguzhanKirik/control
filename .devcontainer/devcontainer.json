@@ -1,33 +1,41 @@
 {
-  "name": "Smart Palletizing ROS2 DevContainer",
+  "name": "Control Exercice",
   "build": {
-    "dockerfile": "../Dockerfile"
+    "dockerfile": "../Dockerfile",
+    "context": ".."
   },
-  "workspaceFolder": "/home/oguz/neura_tasks_ws",
+  "workspaceFolder": "/home/oguz/control_ws",
   "customizations": {
     "vscode": {
       "settings": {
         "terminal.integrated.shell.linux": "/bin/bash",
         "python.defaultInterpreterPath": "/usr/bin/python3",
-        "ros.distro": "humble"
+        "ros.distro": "humble",
+        "files.associations": {
+          "*.launch": "xml",
+          "*.xacro": "xml",
+          "*.urdf": "xml"
+        },
+        "cmake.configureOnOpen": false
       },
       "extensions": [
         "ms-iot.vscode-ros",
         "ms-python.python",
         "ms-vscode.cpptools",
-        "ms-vscode.cpptools-extension-pack",
         "ms-vscode.cmake-tools",
-        "twxs.cmake",
         "redhat.vscode-yaml",
-        "ms-python.flake8"
+        "twxs.cmake"
       ]
     }
   },
-  "forwardPorts": [11311, 5000, 8080],
+  "forwardPorts": [11311],
   "mounts": [
-    "source=${localWorkspaceFolder},target=/home/oguz/neura_tasks_ws,type=bind"
+    "source=${localWorkspaceFolder},target=/home/oguz/control_ws,type=bind"
   ],
+  "remoteEnv": {
+    "ROS_DOMAIN_ID": "0"
+  },
   "remoteUser": "root",
-  "postCreateCommand": "apt-get update && rosdep update",
-  "postStartCommand": "/bin/bash -c 'source /opt/ros/humble/setup.bash && cd /home/oguz/neura_tasks_ws && colcon build --symlink-install'"
+  "postCreateCommand": "rosdep update",
+  "postStartCommand": "source /opt/ros/humble/setup.bash && cd /home/oguz/control_ws && if [ -d src ] && [ \"$(find src -name '*.xml' -o -name 'CMakeLists.txt' | head -1)\" ]; then colcon build --symlink-install; fi"
 }
