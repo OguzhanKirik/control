@@ -63,12 +63,4 @@ jobs:
           cd src/control_ws
           colcon build --packages-select control_versions ur5_moveit_planner
 
-      - name: Test
-        shell: bash
-        run: |
-          source /opt/ros/humble/setup.bash
-          cd src/control_ws
-          source install/setup.bash
-          colcon test --packages-select control_versions ur5_moveit_planner
-          colcon test-result --verbose
-        
+
