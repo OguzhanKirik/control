@@ -8,9 +8,9 @@
 class UR5MoveItPlanner : public rclcpp::Node{
 
     public:
-        UR5MoveItPlanner::UR5MoveItPlanner() : Node("ur5_moveit_planner"),
+        UR5MoveItPlanner() : Node("ur5_moveit_planner"),
             move_group_(std::shared_ptr<rclcpp::Node>(std::static_pointer_cast<rclcpp::Node>(shared_from_this())),
-            "manipulator"),
+            "manipulator")
         {
             //Params
             declare_parameter<bool>("execute_with_moveit",true);
@@ -23,7 +23,7 @@ class UR5MoveItPlanner : public rclcpp::Node{
             get_parameter("stream_rate_hz", stream_rate_hz_);
 
             //Publisher to your torque/MPC controller(if streaming)
-            ref_pub_ = creata_publisher<sensor_msgs::msg::JointState>("~/cmd_joint_state",10);
+            ref_pub_ = create_publisher<sensor_msgs::msg::JointState>("~/cmd_joint_state",10);
 
             //Basic Moveit setup
             move_group_.setPlanningTime(5.0);
@@ -38,13 +38,13 @@ class UR5MoveItPlanner : public rclcpp::Node{
 
             bool ok = false;
             if(!q_target.empty()){
-                ok = planToJoinTarget(q_target);
+                ok = planToJointTarget(q_target);
             }else if(xyzrpy.size() == 6){
                 ok = planToPoseTarget(xyzrpy);
             }else{
                 RCLCPP_WARN(get_logger(), "No target provided. Using a small demo joint move.");
                 //Demo: move+0.2 rad on shoulder_pan
-                auto currect = move_group_.getCurrentJointValues();
+                auto current = move_group_.getCurrentJointValues();
                 if (current.size() >= 6) current[0] += 0.2;
                 ok = planToJointTarget(current);
             }
@@ -69,12 +69,12 @@ class UR5MoveItPlanner : public rclcpp::Node{
         }
 
         bool planToPoseTarget(const std::vector<double>& xyzrpy){
-            geotmetry_msgs::msg::PoseStamped pose;
+            geometry_msgs::msg::PoseStamped pose;
             pose.header.frame_id = move_group_.getPlanningFrame();
             pose.pose.position.x = xyzrpy[0];
-            pose.pose.position.x = xyzrpy[1];
-            pose.pose.position.x = xyzrpy[2];
-            tf2::Quartenion q; 
+            pose.pose.position.y = xyzrpy[1];
+            pose.pose.position.z = xyzrpy[2];
+            tf2::Quaternion q; 
             q.setRPY(xyzrpy[3],xyzrpy[4],xyzrpy[5]);
             pose.pose.orientation.x = q.x();
             pose.pose.orientation.y = q.y();
@@ -103,50 +103,59 @@ class UR5MoveItPlanner : public rclcpp::Node{
 
         void startStreamingToController(){
             //Stream the planned joint_trajcetory as JointState references
-            const auto& jt = plan_.trajectory_.joint_trajectoy;
+            const auto& jt = plan_.trajectory_.joint_trajectory;
             if(jt.points.empty()){
                 RCLCPP_ERROR(get_logger(), "Empty trajectory; nothing to stream.");
                 return;
             }
             // Build a timer to publish at stream_rate_hz_
             auto period = std::chrono::duration<double>(1.0 / stream_rate_hz_);
-            size_t idx = 0;
+            current_idx_ = 0;
             base_time_ = now();
+            
+            // Store the trajectory for use in timer callback
+            current_trajectory_ = jt;
+            
             timer_ = create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(period),
-                [this, &jt, idx]() mutable {
-                    // Advance according to time_from_start (interpolating by nearest index for simplicity)
-                    rclcpp::Duration elapsed = now() - base_time_;
-                    // Find the last point whose time_from_start <= elapsed
-                    while (idx + 1 < jt.points.size() &&
-                        rclcpp::Duration(jt.points[idx + 1].time_from_start) <= elapsed) {
-                    idx++;
-                    }
-
-                    const auto& pt = jt.points[idx];
-                    sensor_msgs::msg::JointState msg;
-                    msg.name = jt.joint_names;
-                    msg.position = pt.positions;
-
-                    if (!pt.velocities.empty())
-                    msg.velocity = pt.velocities;
-                    if (!pt.accelerations.empty())
-                    msg.effort = pt.accelerations;  // <-- your controller uses effort field as qdd_ref
-
-                    ref_pub_->publish(msg);
-
-                    if (idx + 1 >= jt.points.size()) {
-                    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "Streaming complete.");
-                    timer_->cancel(); // stop
-                    }
-                });
+                std::bind(&UR5MoveItPlanner::timerCallback, this));
 
                 RCLCPP_INFO(get_logger(), "Streaming planned trajectory to ~/cmd_joint_state at %.1f Hz",
                             stream_rate_hz_);
+            }
+            
+        private:
+            void timerCallback() {
+                // Advance according to time_from_start (interpolating by nearest index for simplicity)
+                rclcpp::Duration elapsed = now() - base_time_;
+                // Find the last point whose time_from_start <= elapsed
+                while (current_idx_ + 1 < current_trajectory_.points.size() &&
+                    rclcpp::Duration(current_trajectory_.points[current_idx_ + 1].time_from_start) <= elapsed) {
+                current_idx_++;
+                }
+
+                const auto& pt = current_trajectory_.points[current_idx_];
+                sensor_msgs::msg::JointState msg;
+                msg.name = current_trajectory_.joint_names;
+                msg.position = pt.positions;
+
+                if (!pt.velocities.empty())
+                msg.velocity = pt.velocities;
+                if (!pt.accelerations.empty())
+                msg.effort = pt.accelerations;  // <-- your controller uses effort field as qdd_ref
+
+                ref_pub_->publish(msg);
+
+                if (current_idx_ + 1 >= current_trajectory_.points.size()) {
+                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "Streaming complete.");
+                timer_->cancel(); // stop
+                }
             }
 
             bool execute_with_moveit_{true};
             double stream_rate_hz_{200.0};
             rclcpp::Time base_time_;
+            size_t current_idx_;
+            trajectory_msgs::msg::JointTrajectory current_trajectory_;
 
             rclcpp::Publisher<sensor_msgs::msg::JointState>::SharedPtr ref_pub_;
             rclcpp::TimerBase::SharedPtr timer_;
