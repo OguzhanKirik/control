@@ -47,12 +47,20 @@ add_executable(ur5_mpc_torque_node src/ur5_mpc_torque_node.cpp)
 target_link_libraries(ur5_mpc_torque_node Eigen3::Eigen)
 ament_target_dependencies(ur5_mpc_torque_node ${dependencies})
 
+
+## Kalman Filter for Joint State
+add_executable(ur5_jointkf_node src/ur5_jointkf_node.cpp)
+target_link_libraries(ur5_jointkf_node Eigen3::Eigen)
+ament_target_dependencies(ur5_jointkf_node ${dependencies})
+
+
 # Install
 install(TARGETS
   #${PROJECT_NAME}
   ur5_cartesian_controller
   ur5_torque_controller_node
   ur5_mpc_torque_node
+  ur5_jointkf_node
   ARCHIVE DESTINATION lib 
   LIBRARY DESTINATION lib 
   RUNTIME DESTINATION lib/${PROJECT_NAME}
