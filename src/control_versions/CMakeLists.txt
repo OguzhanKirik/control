@@ -7,7 +7,6 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -23,6 +22,7 @@ set (dependencies
   geometry_msgs
   Eigen3
   trajectory_msgs
+  geometry_msgs
   )
 
   # Include directories
@@ -53,6 +53,11 @@ add_executable(ur5_jointkf_node src/ur5_jointkf_node.cpp)
 target_link_libraries(ur5_jointkf_node Eigen3::Eigen)
 ament_target_dependencies(ur5_jointkf_node ${dependencies})
 
+## EKF State
+add_executable(ur5_ekf_state_estimator src/ur5_ekf_state_estimator_node.cpp)
+target_link_libraries(ur5_ekf_state_estimator Eigen3::Eigen)
+ament_target_dependencies(ur5_ekf_state_estimator ${dependencies})
+
 
 # Install
 install(TARGETS
@@ -61,6 +66,7 @@ install(TARGETS
   ur5_torque_controller_node
   ur5_mpc_torque_node
   ur5_jointkf_node
+  ur5_ekf_state_estimator
   ARCHIVE DESTINATION lib 
   LIBRARY DESTINATION lib 
   RUNTIME DESTINATION lib/${PROJECT_NAME}
