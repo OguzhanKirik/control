@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  ros2-humble:
+    build: .
+    container_name: ros2_humble_webots
+    # Use bridge networking with port mapping if host doesn't work
+    ports:
+      - "11311:11311"  # ROS Master (if needed)
+      - "7400:7400"    # DDS Discovery
+      - "7401:7401"    # DDS Discovery
+      - "7410-7430:7410-7430"  # DDS Data ports
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/home/oguz/control_ws
+    environment:
+      - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_cyclonedx_cpp
+      - CYCLONEDX_URI=udp://0.0.0.0:7400
+    working_dir: /home/oguz/control_ws
+    command: /bin/bash

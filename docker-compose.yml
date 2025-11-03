@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  ros2-humble:
+    build: .
+    container_name: ros2_humble_webots
+    network_mode: "host"  # This allows Webots on Mac to discover ROS 2
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/home/oguz/control_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=0  # Make sure this matches on both sides
+      - RMW_IMPLEMENTATION=rmw_cyclonedx_cpp  # Use CycloneDX for better network discovery
+    working_dir: /home/oguz/control_ws
+    command: /bin/bash

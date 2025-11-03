@@ -21,3 +21,12 @@ Usage of Jacobi Matrix
 | **Robustness**  | Sensitive to integration drift                       | Robust to drift (solves absolute pose)           |
 | **Precision**   | Good for local motions                               | Good for exact goal reaching                     |
 | **Typical use** | Teleoperation, impedance control                     | Planning, Cartesian goal moves                   |
+
+
+
+| Layer                               | Uses                            | Model info   | PID used for                     | Typical Output |
+| ----------------------------------- | ------------------------------- | ------------ | -------------------------------- | -------------- |
+| **PID only**                        | servo joints                    | none         | regulate individual errors       | τ or q         |
+| **Kinematic + PID**                 | geometry-based Cartesian motion | Jacobian     | smooth position/velocity control | q̇             |
+| **Dynamic + PID (computed torque)** | physics-based tracking          | (M, C, G)    | linearize error dynamics         | τ              |
+| **Task-space Impedance (PID-like)** | compliance                      | (J, M, C, G) | desired stiffness/damping        | τ              |

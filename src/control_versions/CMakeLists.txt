@@ -13,7 +13,8 @@ find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
-
+find_package(orocos_kdl REQUIRED)
+find_package(kdl_parser REQUIRED)
 
 set (dependencies
   rclcpp
@@ -23,6 +24,8 @@ set (dependencies
   Eigen3
   trajectory_msgs
   geometry_msgs
+  orocos_kdl
+  kdl_parser
   )
 
   # Include directories
@@ -37,9 +40,14 @@ target_include_directories(ur5_cartesian_controller PRIVATE ${EIGEN3_INCLUDE_DIR
 
 # Torque controller
 add_executable(ur5_torque_controller_node src/ur5_torque_controller_node.cpp)
-
 target_link_libraries(ur5_torque_controller_node Eigen3::Eigen)
 ament_target_dependencies(ur5_torque_controller_node ${dependencies})
+
+# Cartesian Impedance controller
+add_executable(ur5_cartesian_impedance_node src/ur5_cartesian_impedance_node.cpp)
+target_link_libraries(ur5_cartesian_impedance_node Eigen3::Eigen)
+ament_target_dependencies(ur5_cartesian_impedance_node ${dependencies})
+
 
 
 # MPC (torque) controller
@@ -64,6 +72,7 @@ install(TARGETS
   #${PROJECT_NAME}
   ur5_cartesian_controller
   ur5_torque_controller_node
+  ur5_cartesian_impedance_node
   ur5_mpc_torque_node
   ur5_jointkf_node
   ur5_ekf_state_estimator

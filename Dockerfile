@@ -22,6 +22,12 @@ RUN apt-get update && apt-get install -y \
     ros-humble-moveit-common \
     ros-humble-moveit-configs-utils \
     ros-humble-moveit-simple-controller-manager \
+    ros-humble-joint-state-publisher \
+    ros-humble-joint-state-publisher-gui \
+    ros-humble-robot-state-publisher \
+    ros-humble-tf2-ros \
+    ros-humble-tf2-tools \
+    ros-humble-xacro \
     && rm -rf /var/lib/apt/lists/*
 
 # Initialize rosdep
