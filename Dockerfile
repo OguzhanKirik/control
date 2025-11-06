@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y \
     ros-humble-tf2-ros \
     ros-humble-tf2-tools \
     ros-humble-xacro \
+    ros-humble-py-binding-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Initialize rosdep
